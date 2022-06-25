@@ -13,9 +13,13 @@ Renderer.drawCar = function (gl,useShader) {
 
 
   M                 = glMatrix.mat4.create();
+  T                 = glMatrix.mat4.create();
   rotate_transform  = glMatrix.mat4.create();
   translate_matrix  = glMatrix.mat4.create();
   scale_matrix      = glMatrix.mat4.create();
+
+  tpot_scale_matrix = glMatrix.mat4.create();
+  tpot_trans_matrix = glMatrix.mat4.create();
 
   glMatrix.mat4.fromTranslation(translate_matrix,[0,1,1]);
   glMatrix.mat4.fromScaling(scale_matrix,[0.7,0.25,1]);
@@ -25,9 +29,24 @@ Renderer.drawCar = function (gl,useShader) {
   glMatrix.mat4.fromTranslation(translate_matrix,[0,0.1,-1]);
   glMatrix.mat4.mul(M,translate_matrix,M);
 
-  Renderer.stack.push();
-  Renderer.stack.multiply(M);
+  glMatrix.mat4.fromTranslation(tpot_trans_matrix,[0, 3.8,2]);
+  glMatrix.mat4.fromScaling(tpot_scale_matrix,[0.2,0.2,.2]);
+  glMatrix.mat4.mul(T,tpot_scale_matrix,tpot_trans_matrix);
 
+  Renderer.stack.push();
+
+  Renderer.stack.multiply(T);
+
+  gl.uniformMatrix4fv(useShader.uM, false, this.stack.matrix);
+
+  gl.uniform1f(useShader.uVeryShiny, 1.0);
+
+  this.drawObject(gl,this.teapot,[1,1,1,1.0],[.95,.95,.95,1.0], useShader);
+
+  Renderer.stack.pop();
+  Renderer.stack.push();
+  gl.uniform1f(useShader.uVeryShiny, 0.0);
+  Renderer.stack.multiply(M);
 
   gl.uniformMatrix4fv(useShader.uM, false, this.stack.matrix);
 
@@ -131,7 +150,7 @@ rotation_matrix   = glMatrix.mat4.create();
 
 Renderer.drawScene = function (gl, useShader, right) {
   gl.useProgram(useShader);
-
+  gl.uniform1f(useShader.uPlainColor, 0.0);
 
   // SLIDERS
   gl.uniform1f(useShader.uFogMulOffset,       getSlider("fog"));
@@ -139,6 +158,7 @@ Renderer.drawScene = function (gl, useShader, right) {
   gl.uniform1f(useShader.uInnerConeOffset,    getSlider("inner"));
   gl.uniform1f(useShader.uOuterConeOffset,    getSlider("outer"));
   gl.uniform1f(useShader.uShadowBias,         getSlider("bias"));
+  gl.uniform1f(useShader.uLampIntensity,      getSlider("lamp_int"));
 
   sun.direction = Game.scene.weather.sunLightDirection;
   sun.color = Game.scene.weather.sunLightColor;
@@ -217,7 +237,7 @@ Renderer.drawScene = function (gl, useShader, right) {
   this.stack.pop();
 
 
-  gl.uniform1f(useShader.u_flat_blending, .7);
+  gl.uniform1f(useShader.u_flat_blending, 1);
   gl.uniformMatrix4fv(useShader.uM, false, this.stack.matrix);
 
 
@@ -232,11 +252,12 @@ Renderer.drawScene = function (gl, useShader, right) {
   gl.uniform1i(useShader.uProjectionSamplerRLocation, 1);
   gl.uniform1i(useShader.uProjectionSamplerLLocation, 3);
 
+  gl.uniform1f(useShader.u_flat_blending, 1);
   this.drawObject(gl, Game.scene.groundObj, [0.3, 0.7, 0.2, 1.0], [0, 0, 0, 1.0], useShader);
 
   /* 2. STREET */
   gl.bindTexture(gl.TEXTURE_2D, Renderer.STREET_TEXTURE);
-  gl.uniform1f(useShader.u_flat_blending, .9);
+  gl.uniform1f(useShader.u_flat_blending, 1);
   this.drawObject(gl, Game.scene.trackObj, [0.9, 0.8, 0.7, 1.0], [0, 0, 0, 1.0], useShader);
 
 
@@ -258,6 +279,28 @@ Renderer.drawScene = function (gl, useShader, right) {
 
   if(useShader === shaders[0])
     for(var i = 0; i<12; i++){
+      let M         = glMatrix.mat4.create();
+      let M1        = glMatrix.mat4.create();
+      let scale_mat = glMatrix.mat4.create();
+
+      glMatrix.mat4.fromTranslation(M, [lamp_position_array[i][0], lamp_position_array[i][1] + 3, lamp_position_array[i][2]]);
+
+      let max_slider = Math.max(getSlider("inner"), getSlider("outer"))
+
+      let h_scale = (max_slider / 100) * 1.6;
+      let v_scale = (1-(max_slider / 100)) * .4;
+
+      glMatrix.mat4.fromScaling(scale_mat, [h_scale, v_scale, h_scale, 0]);
+      glMatrix.mat4.mul(M, M, scale_mat);
+
+      this.stack.multiply(M);
+      gl.uniformMatrix4fv(useShader.uM, false, this.stack.matrix);
+       gl.uniform1f(useShader.uPlainColor, 1.0);
+      this.drawObject(gl, this.cone, [1., 1., 1., 1.0], [0.2, 0.2, 0.2, 1.0], useShader);
+       gl.uniform1f(useShader.uPlainColor, 0.0);
+      glMatrix.mat4.invert(M1, M);
+
+      this.stack.multiply(M1);
       gl.uniform3fv(useShader.uLampLocation[i], lamp_position_array[i]);
     }
 

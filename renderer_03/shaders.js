@@ -103,7 +103,10 @@ lightingShader = function (gl) {
   shaderProgram.uInnerConeOffset = gl.getUniformLocation(shaderProgram, "uInnerConeOffset");
   shaderProgram.uOuterConeOffset = gl.getUniformLocation(shaderProgram, "uOuterConeOffset");
   shaderProgram.uShadowBias = gl.getUniformLocation(shaderProgram, "uShadowBias");
+  shaderProgram.uLampIntensity = gl.getUniformLocation(shaderProgram, "uLampIntensity");
 
+  shaderProgram.uVeryShiny = gl.getUniformLocation(shaderProgram, "uVeryShiny");
+  shaderProgram.uPlainColor = gl.getUniformLocation(shaderProgram, "uPlainColor");
 
   nLights = 12;
 
@@ -188,6 +191,7 @@ depthShader = function (gl) {
   shaderProgram.uLampLocation= new Array();
 
   shaderProgram.uDepthSamplerLocation   = gl.getUniformLocation(shaderProgram, "uDepthSampler");
+
   nLights = 12;
 
   for(var i = 0; i < nLights; ++i){

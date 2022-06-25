@@ -21,6 +21,10 @@ uniform float uHeadlightMulOffset;
 uniform float uInnerConeOffset;
 uniform float uOuterConeOffset;
 uniform float uShadowBias;
+uniform float uLampIntensity;
+
+uniform float uVeryShiny;
+uniform float uPlainColor;
 
 varying vec3 vnormal;
 varying vec3 vpos;
@@ -29,10 +33,9 @@ varying vec2 vTexCoords;
 varying vec4 vprojectedThingR;
 varying vec4 vprojectedThingL;
 
-vec4 vdiffuse;
-vec4 vambient;
-vec4 vspecular;
-vec4 vshininess;
+
+float specular_mul;
+
 
 float darkness_blending = 0.5;
 
@@ -47,13 +50,13 @@ uniform vec3 uLampLocation[12];
 vec3 specular_component(vec3 N, vec3 L, float NdotL, float exp, vec3 lightColor){
     vec3 V=normalize(-vpos);
 
-    vec3 R = (2.0 * NdotL * N) - L;
+    vec3 R = normalize((2.0 * NdotL * N) - L);
 
     float RdotV = max(0.0, dot(R, V));
 
     float spec = pow(RdotV, exp);
 
-    return (vspecular.xyz * lightColor) * spec;
+    return (specular_mul * lightColor) * spec;
 }
 
 
@@ -90,11 +93,10 @@ vec3 headlightComponent(mat4 hvm, vec2 ptc, vec4 pThing, sampler2D depthSampler,
 
 void main()
 {
-    vdiffuse = vec4(0.1,0.1,0.1,0.0);
-    vambient = vec4(0.3,0.3,0.3,0.0);
-    vspecular = vec4(0.5,0.5,0.5,0.0);
-    vshininess = vec4(1, 0., 0., 0.);
 
+    specular_mul = 1.;
+
+    if(uVeryShiny > 0.) specular_mul = 20.;
 
 
     // position in world space and "headlight space"
@@ -144,29 +146,36 @@ void main()
 
 
     // specular component
-    vec3 specular = specular_component(N, L, NdotL, 4., uLightColor);
+    vec3 specular;
+    if(uVeryShiny > 0.)
+         specular = specular_component(N, L, NdotL, 100., uLightColor);
+    else
+         specular = specular_component(N, L, NdotL, 4., uLightColor);
 
     vec3 final = lambert + (specular * (1.-u_flat_blending));
 
+    float lamp_intensity = uLampIntensity/30.;
 
     for(int i = 0; i < 12; i++){
 
         vec3 VS_lamp_position = (uViewMatrix * vec4(uLampLocation[i], 1.0)).xyz;
 
-        // calcolo la distanza tra il punto in view space e la lampada
+         vec3 lamp_L = (VS_lamp_position + (uViewMatrix * vec4(0.,3.,0.,0.)).xyz) - vpos;
 
-        //float distance = sqrt(dot(uLampLocation[i] - wpos, uLampLocation[i] - wpos));
-        float distance = sqrt(dot(VS_lamp_position - vpos, VS_lamp_position - vpos));
+        float distance = sqrt(dot(lamp_L, lamp_L));
 
 
-        //final += vec3(distance /100., distance/100., distance/100.);
 
-        vec3 lamp_L = (VS_lamp_position + (uViewMatrix * vec4(0.,3.,0.,0.)).xyz) - vpos;
-
-        float lamp_NdotL = max(0., dot(N, lamp_L));
+        float lamp_NdotL = max(0., dot(N, normalize(lamp_L)));
         vec3 lamp_color = vec3(1, .5, .5);
-        vec3 lamp_specular = specular_component(N, lamp_L, NdotL, 1., lamp_color)/100000.;
-        vec3 lamp_contribution = max(0., dot(N, lamp_L) / (distance*distance)) * lamp_color;
+
+        vec3 lamp_specular;
+        if(uVeryShiny > 0.)
+             lamp_specular = specular_component(N, lamp_L, lamp_NdotL, 80., lamp_color);
+        else
+             lamp_specular = specular_component(N, lamp_L, lamp_NdotL, 4., lamp_color);
+
+        vec3 lamp_contribution = max(0., dot(N, lamp_L) / (distance*distance)) * lamp_color * lamp_intensity + (lamp_specular * (1.-u_flat_blending));
         vec3 surface_to_lamp_vs = lamp_L;
 
         float uhm = dot(normalize(surface_to_lamp_vs), normalize((uViewMatrix * vec4(0.,1.,0.,0.)).xyz));
@@ -182,6 +191,8 @@ void main()
 
     // FOG (again)
     final += vec3(length(vpos)/2., length(vpos)/2., length(vpos)) * (.004 + uFogMulOffset / 10000.);
+
+    if(uPlainColor > 0.) final = uColor;
 
     gl_FragColor  = vec4(final, 1.0);
 }
